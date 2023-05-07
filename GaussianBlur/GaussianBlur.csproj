@@ -72,6 +72,15 @@
     <Content Include="InputImages\colors.jpg">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="InputImages\colors2.jpg">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="InputImages\colors3.jpg">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="InputImages\colors4.jpg">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="InputImages\fatcat.jpg">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
