@@ -11,7 +11,7 @@ namespace GaussianBlur
             if (err != ErrorCode.Success)
             {
                 Console.WriteLine("OpenCL Error: " + err.ToString());
-                System.Environment.Exit(1);
+                throw new Cl.Exception(err);
             }
         }
 
@@ -34,12 +34,10 @@ namespace GaussianBlur
             const int dataSize = elementSize * sizeof(int);
             int[] vectorA = new int[elementSize];
             int[] vectorB = new int[elementSize];
-            int[] vectorC = new int[elementSize];
 
             for (int i = 0; i < elementSize; i++)
             {
                 vectorA[i] = i;
-                vectorB[i] = i;
             }
 
             // used for checking error status of api calls
@@ -88,12 +86,9 @@ namespace GaussianBlur
             CheckStatus(status);
             IMem<int> bufferB = Cl.CreateBuffer<int>(context, MemFlags.ReadOnly, dataSize, out status); ;
             CheckStatus(status);
-            IMem<int> bufferC = Cl.CreateBuffer<int>(context, MemFlags.WriteOnly, dataSize, out status); ;
-            CheckStatus(status);
 
             // write data from the input vectors to the buffers
             CheckStatus(Cl.EnqueueWriteBuffer(commandQueue, bufferA, Bool.True, IntPtr.Zero, new IntPtr(dataSize), vectorA, 0, null, out var _));
-            CheckStatus(Cl.EnqueueWriteBuffer(commandQueue, bufferB, Bool.True, IntPtr.Zero, new IntPtr(dataSize), vectorB, 0, null, out var _));
 
             // create the program
             string programSource = File.ReadAllText("kernel.cl");
@@ -117,7 +112,6 @@ namespace GaussianBlur
             // set the kernel arguments
             CheckStatus(Cl.SetKernelArg(kernel, 0, bufferA));
             CheckStatus(Cl.SetKernelArg(kernel, 1, bufferB));
-            CheckStatus(Cl.SetKernelArg(kernel, 2, bufferC));
 
             // output device capabilities
             IntPtr paramSize;
@@ -148,17 +142,15 @@ namespace GaussianBlur
             CheckStatus(Cl.EnqueueNDRangeKernel(commandQueue, kernel, 1, null, new IntPtr[] { new IntPtr(elementSize) }, null, 0, null, out var _));
 
             // read the device output buffer to the host output array
-            CheckStatus(Cl.EnqueueReadBuffer(commandQueue, bufferC, Bool.True, IntPtr.Zero, new IntPtr(dataSize), vectorC, 0, null, out var _));
+            CheckStatus(Cl.EnqueueReadBuffer(commandQueue, bufferB, Bool.True, IntPtr.Zero, new IntPtr(dataSize), vectorB, 0, null, out var _));
 
             // output result
             PrintVector(vectorA, elementSize, "Input A");
-            PrintVector(vectorB, elementSize, "Input B");
-            PrintVector(vectorC, elementSize, "Output C");
+            PrintVector(vectorB, elementSize, "Output B");
 
             // release opencl objects
             CheckStatus(Cl.ReleaseKernel(kernel));
             CheckStatus(Cl.ReleaseProgram(program));
-            CheckStatus(Cl.ReleaseMemObject(bufferC));
             CheckStatus(Cl.ReleaseMemObject(bufferB));
             CheckStatus(Cl.ReleaseMemObject(bufferA));
             CheckStatus(Cl.ReleaseCommandQueue(commandQueue));
