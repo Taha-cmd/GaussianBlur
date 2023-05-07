@@ -1,23 +1,33 @@
-﻿__kernel void gaussian_blur(__global const float *input, __global float *output,
-                           const int width, const int height) {
+﻿__kernel void gaussian_blur(__global const float4 *inputBuffer,
+                            __global float4 *outputBuffer, const int width,
+                            const int height) {
 
   const int2 coords = (int2)(get_global_id(0), get_global_id(1));
 
   const int pixelIndex = coords.y * width + coords.x;
 
-  const float gaussian_kernel[5] = {0.0625f, 0.125f, 0.25f, 0.125f,
-                                    0.0625f}; // Gaussian kernel values
+  const float gaussian_kernel[5][5] = {
+    { 0.003765, 0.015019, 0.023792, 0.015019, 0.003765 },
+    { 0.015019, 0.059912, 0.094907, 0.059912, 0.015019 },
+    { 0.023792, 0.094907, 0.150342, 0.094907, 0.023792 },
+    { 0.015019, 0.059912, 0.094907, 0.059912, 0.015019 },
+    { 0.003765, 0.015019, 0.023792, 0.015019, 0.003765 }
+  };
 
-  float blurredPixel = 0.0f;
+  float4 blurredPixel = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
 
-  for (int i = -2; i <= 2; i++) {
-    const int neighborIndex = pixelIndex + i;
-    const int neighborX = coords.x + i;
+  for (int j = -2; j <= 2; j++) {
+    for (int i = -2; i <= 2; i++) {
+      const int neighborX = coords.x + i;
+      const int neighborY = coords.y + j;
 
-    if (neighborX >= 0 && neighborX < width) {
-      blurredPixel += input[neighborIndex] * gaussian_kernel[i + 2];
+      if (neighborX >= 0 && neighborX < width && neighborY >= 0 && neighborY < height) {
+        const int neighborIndex = neighborY * width + neighborX;
+        blurredPixel += inputBuffer[neighborIndex] * gaussian_kernel[j + 2][i + 2];
+      }
     }
   }
 
-  output[pixelIndex] = blurredPixel;
+  outputBuffer[pixelIndex] = blurredPixel;
+  // outputBuffer[pixelIndex] = inputBuffer[pixelIndex];
 }
