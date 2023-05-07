@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using OpenCL.Net;
+using System.Drawing;
+using ImageFormat = System.Drawing.Imaging.ImageFormat;
 
 namespace GaussianBlur
 {
@@ -11,7 +13,7 @@ namespace GaussianBlur
             if (err != ErrorCode.Success)
             {
                 Console.WriteLine("OpenCL Error: " + err.ToString());
-                System.Environment.Exit(1);
+                throw new Cl.Exception(err);
             }
         }
 
@@ -27,20 +29,25 @@ namespace GaussianBlur
             Console.WriteLine();
         }
 
+        static void PrintDeviceInfo(Device device)
+        {
+            var enums = Enum.GetValues(typeof(DeviceInfo));
+
+            foreach (var infoType in enums)
+            {
+                var info = Cl.GetDeviceInfo(device, (DeviceInfo)infoType, out var _);
+                Console.WriteLine($"{infoType.ToString()}: {info.CastTo<int>()}");
+            }
+
+        }
+
         static void Main(string[] args)
         {
-            // input and output arrays
-            const int elementSize = 10;
-            const int dataSize = elementSize * sizeof(int);
-            int[] vectorA = new int[elementSize];
-            int[] vectorB = new int[elementSize];
-            int[] vectorC = new int[elementSize];
 
-            for (int i = 0; i < elementSize; i++)
-            {
-                vectorA[i] = i;
-                vectorB[i] = i;
-            }
+            string inputImageName = "fatcat500x500.jpg";
+
+            var bitmap = new Bitmap($"InputImages/{inputImageName}");
+
 
             // used for checking error status of api calls
             ErrorCode status;
@@ -75,6 +82,8 @@ namespace GaussianBlur
             CheckStatus(Cl.GetDeviceIDs(platform, DeviceType.All, numDevices, devices, out numDevices));
             Device device = devices[0];
 
+            PrintDeviceInfo(device);
+
             // create context
             Context context = Cl.CreateContext(null, 1, new Device[] { device }, null, IntPtr.Zero, out status);
             CheckStatus(status);
@@ -83,17 +92,29 @@ namespace GaussianBlur
             CommandQueue commandQueue = Cl.CreateCommandQueue(context, device, 0, out status);
             CheckStatus(status);
 
-            // allocate two input and one output buffer for the three vectors
-            IMem<int> bufferA = Cl.CreateBuffer<int>(context, MemFlags.ReadOnly, dataSize, out status);
+            int bufferSize = bitmap.Height * bitmap.Width;// * sizeof(float);
+            float[] input = new float[bufferSize];
+
+            for (int i = 0; i < bitmap.Height; i++)
+            {
+                for (int j = 0; j < bitmap.Width; j++)
+                {
+                    var pixel = bitmap.GetPixel(j, i);
+                    var grayscale = (float)(pixel.R + pixel.G + pixel.B) / 3;
+                    input[i * bitmap.Width + j] = grayscale;
+                }
+            }
+
+            float[] output = new float[bufferSize];
+
+
+            IMem<float> inputBuffer = Cl.CreateBuffer<float>(context, MemFlags.ReadOnly | MemFlags.CopyHostPtr, input, out status);
             CheckStatus(status);
-            IMem<int> bufferB = Cl.CreateBuffer<int>(context, MemFlags.ReadOnly, dataSize, out status); ;
-            CheckStatus(status);
-            IMem<int> bufferC = Cl.CreateBuffer<int>(context, MemFlags.WriteOnly, dataSize, out status); ;
+            IMem<float> outputBuffer = Cl.CreateBuffer<float>(context, MemFlags.WriteOnly, output.Length, out status); ;
             CheckStatus(status);
 
             // write data from the input vectors to the buffers
-            CheckStatus(Cl.EnqueueWriteBuffer(commandQueue, bufferA, Bool.True, IntPtr.Zero, new IntPtr(dataSize), vectorA, 0, null, out var _));
-            CheckStatus(Cl.EnqueueWriteBuffer(commandQueue, bufferB, Bool.True, IntPtr.Zero, new IntPtr(dataSize), vectorB, 0, null, out var _));
+            //CheckStatus(Cl.EnqueueWriteBuffer(commandQueue, inputBuffer, Bool.True, IntPtr.Zero, new IntPtr(bufferSize), input, 0, null, out var _));
 
             // create the program
             string programSource = File.ReadAllText("kernel.cl");
@@ -111,13 +132,15 @@ namespace GaussianBlur
             }
 
             // create the vector addition kernel
-            OpenCL.Net.Kernel kernel = Cl.CreateKernel(program, "vector_add", out status);
+            OpenCL.Net.Kernel kernel = Cl.CreateKernel(program, "gaussian_blur", out status);
             CheckStatus(status);
 
             // set the kernel arguments
-            CheckStatus(Cl.SetKernelArg(kernel, 0, bufferA));
-            CheckStatus(Cl.SetKernelArg(kernel, 1, bufferB));
-            CheckStatus(Cl.SetKernelArg(kernel, 2, bufferC));
+            
+            CheckStatus(Cl.SetKernelArg<float>(kernel, 0, inputBuffer));
+            CheckStatus(Cl.SetKernelArg<float>(kernel, 1, outputBuffer));
+            CheckStatus(Cl.SetKernelArg(kernel, 2, bitmap.Width));
+            
 
             // output device capabilities
             IntPtr paramSize;
@@ -145,22 +168,25 @@ namespace GaussianBlur
             // execute the kernel
             // ndrange capabilities only need to be checked when we specify a local work group size manually
             // in our case we provide NULL as local work group size, which means groups get formed automatically
-            CheckStatus(Cl.EnqueueNDRangeKernel(commandQueue, kernel, 1, null, new IntPtr[] { new IntPtr(elementSize) }, null, 0, null, out var _));
+            var globalSize = new[] { new IntPtr(bitmap.Width) , new IntPtr(bitmap.Height) };
+            IntPtr[] localWorkSize = null; //new[] { new IntPtr(64), new IntPtr(64) };
+            CheckStatus(Cl.EnqueueNDRangeKernel(commandQueue, kernel, 2, null, globalSize, localWorkSize, 0, null, out var _));
+            Cl.Finish(commandQueue);
+
+            //Cl.EnqueueReadBuffer(commandQueue, outputMem, Bool.True, IntPtr.Zero, imageSize * sizeof(float), outputBuffer, 0, null, out eventObject);
 
             // read the device output buffer to the host output array
-            CheckStatus(Cl.EnqueueReadBuffer(commandQueue, bufferC, Bool.True, IntPtr.Zero, new IntPtr(dataSize), vectorC, 0, null, out var _));
+            //var 
+            CheckStatus(Cl.EnqueueReadBuffer(commandQueue, outputBuffer, Bool.True, IntPtr.Zero, new IntPtr(100 * sizeof(float)), output, 0, null, out var _));
+            Cl.Finish(commandQueue);
 
-            // output result
-            PrintVector(vectorA, elementSize, "Input A");
-            PrintVector(vectorB, elementSize, "Input B");
-            PrintVector(vectorC, elementSize, "Output C");
 
+            Console.WriteLine("Done");
             // release opencl objects
             CheckStatus(Cl.ReleaseKernel(kernel));
             CheckStatus(Cl.ReleaseProgram(program));
-            CheckStatus(Cl.ReleaseMemObject(bufferC));
-            CheckStatus(Cl.ReleaseMemObject(bufferB));
-            CheckStatus(Cl.ReleaseMemObject(bufferA));
+            CheckStatus(Cl.ReleaseMemObject(outputBuffer));
+            CheckStatus(Cl.ReleaseMemObject(inputBuffer));
             CheckStatus(Cl.ReleaseCommandQueue(commandQueue));
             CheckStatus(Cl.ReleaseContext(context));
 
