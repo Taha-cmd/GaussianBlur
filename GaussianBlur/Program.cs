@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using OpenCL.Net;
 using System.Drawing;
@@ -17,18 +18,6 @@ namespace GaussianBlur
             }
         }
 
-        static void PrintVector(int[] vector, int elementSize, string label)
-        {
-            Console.WriteLine(label + ":");
-
-            for (int i = 0; i < elementSize; ++i)
-            {
-                Console.Write(vector[i] + " ");
-            }
-
-            Console.WriteLine();
-        }
-
         static void PrintDeviceInfo(Device device)
         {
             var enums = Enum.GetValues(typeof(DeviceInfo));
@@ -41,10 +30,92 @@ namespace GaussianBlur
 
         }
 
+        static float[] GetImageData(Bitmap image)
+        {
+            // https://stackoverflow.com/questions/18766004/how-to-convert-from-system-drawing-bitmap-to-grayscale-then-to-array-of-doubles
+            int width = image.Width;
+            int height = image.Height;
+
+            float[] imageData = new float[width * height];
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    Color pixel = image.GetPixel(x, y);
+                    int averageColor = ((pixel.R + pixel.G + pixel.B) / 3);
+                    image.SetPixel(x, y, Color.FromArgb(averageColor, averageColor, averageColor));
+
+                    imageData[y * width + x] = image.GetPixel(x,y).R / 255.0f;
+                }
+            }
+
+            return imageData;
+        }
+
+        private static Bitmap CreateImageFromData(float[] imageData, int width, int height)
+        {
+            Bitmap image = new Bitmap(width, height);
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    float pixelValue = imageData[y * width + x];
+                    int grayscale = (int)(pixelValue * 255);
+                    grayscale = Math.Max(0, Math.Min(255, grayscale));
+                    image.SetPixel(x, y, Color.FromArgb(grayscale, grayscale, grayscale));
+                }
+            }
+
+            return image;
+        }
+
+        private static Bitmap ConvertToColor(float[] outputData, int width, int height, Bitmap inputImage)
+        { 
+            Bitmap colorImage = new Bitmap(width, height);
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int index = y * width + x;
+                    float grayscale = outputData[index];
+                    int originalGrayscale = (int)(grayscale * 255);
+
+                    // Retrieve the original color from the input image
+                    Color originalColor = inputImage.GetPixel(x, y);
+
+                    int red = Math.Min((int)(originalColor.R * (originalGrayscale / 255.0f)), 255);
+                    int green = Math.Min((int)(originalColor.G * (originalGrayscale / 255.0f)), 255);
+                    int blue = Math.Min((int)(originalColor.B * (originalGrayscale / 255.0f)), 255);
+
+
+                    Color colorPixel = Color.FromArgb(originalColor.A, red, green, blue);
+
+
+                    // Set the color pixel in the output image
+                    colorImage.SetPixel(x, y, colorPixel);
+                }
+            }
+
+            return colorImage;
+        }
+
+        // Helper method to clamp the color values within the valid range
+        private static Color ClampColor(Color color)
+        {
+            int max = 255;
+            int red = Math.Max(0, Math.Min(max, color.R));
+            int green = Math.Max(0, Math.Min(max, color.G));
+            int blue = Math.Max(0, Math.Min(max, color.B));
+
+            return Color.FromArgb(color.A, red, green, blue);
+        }
+
         static void Main(string[] args)
         {
 
-            string inputImageName = "fatcat500x500.jpg";
+            string inputImageName = "colors.jpg";
 
             var bitmap = new Bitmap($"InputImages/{inputImageName}");
 
@@ -93,18 +164,7 @@ namespace GaussianBlur
             CheckStatus(status);
 
             int bufferSize = bitmap.Height * bitmap.Width;// * sizeof(float);
-            float[] input = new float[bufferSize];
-
-            for (int i = 0; i < bitmap.Height; i++)
-            {
-                for (int j = 0; j < bitmap.Width; j++)
-                {
-                    var pixel = bitmap.GetPixel(j, i);
-                    var grayscale = (float)(pixel.R + pixel.G + pixel.B) / 3;
-                    input[i * bitmap.Width + j] = grayscale;
-                }
-            }
-
+            float[] input = GetImageData(bitmap);
             float[] output = new float[bufferSize];
 
 
@@ -136,11 +196,12 @@ namespace GaussianBlur
             CheckStatus(status);
 
             // set the kernel arguments
-            
+
             CheckStatus(Cl.SetKernelArg<float>(kernel, 0, inputBuffer));
             CheckStatus(Cl.SetKernelArg<float>(kernel, 1, outputBuffer));
             CheckStatus(Cl.SetKernelArg(kernel, 2, bitmap.Width));
-            
+            CheckStatus(Cl.SetKernelArg(kernel, 3, bitmap.Height));
+
 
             // output device capabilities
             IntPtr paramSize;
@@ -168,18 +229,24 @@ namespace GaussianBlur
             // execute the kernel
             // ndrange capabilities only need to be checked when we specify a local work group size manually
             // in our case we provide NULL as local work group size, which means groups get formed automatically
-            var globalSize = new[] { new IntPtr(bitmap.Width) , new IntPtr(bitmap.Height) };
+            var globalSize = new[] { new IntPtr(bitmap.Width), new IntPtr(bitmap.Height) };
             IntPtr[] localWorkSize = null; //new[] { new IntPtr(64), new IntPtr(64) };
             CheckStatus(Cl.EnqueueNDRangeKernel(commandQueue, kernel, 2, null, globalSize, localWorkSize, 0, null, out var _));
-            Cl.Finish(commandQueue);
+            //Cl.Finish(commandQueue);
 
             //Cl.EnqueueReadBuffer(commandQueue, outputMem, Bool.True, IntPtr.Zero, imageSize * sizeof(float), outputBuffer, 0, null, out eventObject);
 
             // read the device output buffer to the host output array
             //var 
-            CheckStatus(Cl.EnqueueReadBuffer(commandQueue, outputBuffer, Bool.True, IntPtr.Zero, new IntPtr(100 * sizeof(float)), output, 0, null, out var _));
+
+            CheckStatus(Cl.EnqueueReadBuffer(commandQueue, outputBuffer, Bool.True, IntPtr.Zero, new IntPtr(bufferSize * sizeof(float)), output, 0, null, out var _));
             Cl.Finish(commandQueue);
 
+            Bitmap outputImage1 = CreateImageFromData(output, bitmap.Width, bitmap.Height);
+            Bitmap outputImage2 = ConvertToColor(output, bitmap.Width, bitmap.Height, bitmap);
+
+            outputImage1.Save("outfile1.jpg");
+            outputImage2.Save("outfile2.jpg");
 
             Console.WriteLine("Done");
             // release opencl objects
