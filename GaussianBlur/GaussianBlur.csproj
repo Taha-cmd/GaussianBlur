@@ -64,6 +64,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="kernel - Copy.cl">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="kernel.cl">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
