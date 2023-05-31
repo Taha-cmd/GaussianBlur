@@ -10,6 +10,7 @@ namespace GaussianBlur
         private const string OutputFile = $"output_{InputFile}";
         private const string KernelSourceFilename = "kernel.cl";
         private const string KernelName = "GaussianBlur";
+        private const int Sigma = 1;
 
         static void Main(string[] args)
         {
@@ -29,14 +30,14 @@ namespace GaussianBlur
 
                 // Run the column-wise pass
                 openClContext.ExecuteKernel(kernel, 2, globalSize, true,
-                    KernelArg.Get(inputBuffer), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(1), KernelArg.Get(1));
+                    KernelArg.Get(inputBuffer), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(Sigma), KernelArg.Get(1));
 
                 var test = openClContext.ReadBuffer(outputBuffer, inputBufferSize);
-                IMem<float4> secInputBuf = openClContext.CreateBuffer<float4>(MemFlags.ReadOnly | MemFlags.CopyHostPtr, test);
+               IMem<float4> secInputBuf = openClContext.CreateBuffer<float4>(MemFlags.ReadOnly | MemFlags.CopyHostPtr, test);
 
                 // Run the row-wise pass
                 openClContext.ExecuteKernel(kernel, 2, globalSize, true,
-                    KernelArg.Get(secInputBuf), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(1), KernelArg.Get(2));
+                    KernelArg.Get(secInputBuf), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(Sigma), KernelArg.Get(2));
 
                 // Read the result from the output buffer
                 float4[] outputImageData = openClContext.ReadBuffer(outputBuffer, inputBufferSize);
@@ -47,6 +48,7 @@ namespace GaussianBlur
                 Console.WriteLine($"Done. Output: {OutputFile}");
                 Console.WriteLine("Press any key to exit");
                 Console.ReadKey();
+            
             }
         }
     }

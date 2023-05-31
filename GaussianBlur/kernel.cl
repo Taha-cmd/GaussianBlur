@@ -1,4 +1,4 @@
-﻿__kernel void GaussianBlur(__global const float4* inputBuffer, __global float4* outputBuffer, int width, int height, float sigma, int pass)
+﻿__kernel void GaussianBlur(__global const float4* inputBuffer, __global float4* outputBuffer, int width, int height, int sigma, int pass)
 {
     int x = get_global_id(0);
     int y = get_global_id(1);
@@ -6,7 +6,7 @@
     int index = y * width + x;
 
     // Calculate the blur radius based on the sigma value
-    int radius = (int)(3 * sigma);
+    int radius = (3 * sigma);
 
     // Create a local memory buffer
     __local float4 localBuf[512];
@@ -14,8 +14,10 @@
     // Perform the column-wise pass
     if (pass == 1)
     {
+        //printf("I: %d", index);
+        //printf("X: %d", x);
         // Load the input pixels into local memory
-        localBuf[x] = inputBuffer[index];
+        //localBuf[x] = inputBuffer[index];
 
         // Wait for all work-items to finish loading
         barrier(CLK_LOCAL_MEM_FENCE);
@@ -27,7 +29,7 @@
             int offset = y + i;
             if (offset >= 0 && offset < height)
             {
-                sum += localBuf[x + offset * width];
+                sum += inputBuffer[x + offset * width];
             }
         }
 
@@ -51,7 +53,7 @@
             int offset = x + i;
             if (offset >= 0 && offset < width)
             {
-                sum += localBuf[y * width + offset];
+                sum += inputBuffer[y * width + offset];
             }
         }
 
