@@ -32,12 +32,12 @@ namespace GaussianBlur
                 openClContext.ExecuteKernel(kernel, 2, globalSize, true,
                     KernelArg.Get(inputBuffer), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(Sigma), KernelArg.Get(1));
 
-                var test = openClContext.ReadBuffer(outputBuffer, inputBufferSize);
-               IMem<float4> secInputBuf = openClContext.CreateBuffer<float4>(MemFlags.ReadOnly | MemFlags.CopyHostPtr, test);
+                var íntermediateResult = openClContext.ReadBuffer(outputBuffer, inputBufferSize);
+               IMem<float4> intermediateInputBuffer = openClContext.CreateBuffer<float4>(MemFlags.ReadOnly | MemFlags.CopyHostPtr, íntermediateResult);
 
                 // Run the row-wise pass
                 openClContext.ExecuteKernel(kernel, 2, globalSize, true,
-                    KernelArg.Get(secInputBuf), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(Sigma), KernelArg.Get(2));
+                    KernelArg.Get(intermediateInputBuffer), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(Sigma), KernelArg.Get(2));
 
                 // Read the result from the output buffer
                 float4[] outputImageData = openClContext.ReadBuffer(outputBuffer, inputBufferSize);
@@ -48,7 +48,6 @@ namespace GaussianBlur
                 Console.WriteLine($"Done. Output: {OutputFile}");
                 Console.WriteLine("Press any key to exit");
                 Console.ReadKey();
-            
             }
         }
     }
