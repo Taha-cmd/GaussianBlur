@@ -30,14 +30,14 @@ namespace GaussianBlur
 
                 // Run the column-wise pass
                 openClContext.ExecuteKernel(kernel, 2, globalSize, true,
-                    KernelArg.Get(inputBuffer), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(Sigma), KernelArg.Get(1));
+                    KernelArg.Get(inputBuffer), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(Sigma), KernelArg.Get(0));
 
                 var intermediateResult = openClContext.ReadBuffer(outputBuffer, inputBufferSize);
                 IMem<float4> intermediateInputBuffer = openClContext.CreateBuffer<float4>(MemFlags.ReadOnly | MemFlags.CopyHostPtr, intermediateResult);
 
                 // Run the row-wise pass
                 openClContext.ExecuteKernel(kernel, 2, globalSize, true,
-                    KernelArg.Get(intermediateInputBuffer), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(Sigma), KernelArg.Get(2));
+                    KernelArg.Get(intermediateInputBuffer), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(Sigma), KernelArg.Get(1));
 
                 // Read the result from the output buffer
                 float4[] outputImageData = openClContext.ReadBuffer(outputBuffer, inputBufferSize);

@@ -71,6 +71,7 @@ namespace GaussianBlur
             CommandQueue = commandQueue;
 
             // output device capabilities
+            // output device capabilities
             IntPtr paramSize;
             CheckStatus(Cl.GetDeviceInfo(device, DeviceInfo.MaxWorkGroupSize, IntPtr.Zero, InfoBuffer.Empty, out paramSize));
             InfoBuffer maxWorkGroupSizeBuffer = new InfoBuffer(paramSize);
