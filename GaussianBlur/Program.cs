@@ -32,8 +32,8 @@ namespace GaussianBlur
                 openClContext.ExecuteKernel(kernel, 2, globalSize, true,
                     KernelArg.Get(inputBuffer), KernelArg.Get(outputBuffer), KernelArg.Get(inputImageBitmap.Width), KernelArg.Get(inputImageBitmap.Height), KernelArg.Get(Sigma), KernelArg.Get(1));
 
-                var íntermediateResult = openClContext.ReadBuffer(outputBuffer, inputBufferSize);
-               IMem<float4> intermediateInputBuffer = openClContext.CreateBuffer<float4>(MemFlags.ReadOnly | MemFlags.CopyHostPtr, íntermediateResult);
+                var intermediateResult = openClContext.ReadBuffer(outputBuffer, inputBufferSize);
+                IMem<float4> intermediateInputBuffer = openClContext.CreateBuffer<float4>(MemFlags.ReadOnly | MemFlags.CopyHostPtr, intermediateResult);
 
                 // Run the row-wise pass
                 openClContext.ExecuteKernel(kernel, 2, globalSize, true,
