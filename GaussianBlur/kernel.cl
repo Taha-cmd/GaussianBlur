@@ -17,17 +17,11 @@ __kernel void GaussianBlur(__global const float4* inputBuffer, __global float4* 
     // Calculate the blur radius based on the sigma value
     int radius = (3 * sigma);
 
+    // Initialize dimension offsets
     int otherDim = dimension == 0 ? 1 : 0;
     int dimOffset = get_global_id(dimension);
     int otherDimOffset = get_global_id(otherDim);
-
-    // Create a local memory buffer
-    __local float4 localBuf[512]; //use vector add to detemrine local workgroup size and input as buffersize
- 
-
     int range = dimension == 0 ? height : width;
-
-    //localBuf[x] = inputBuffer[index];
 
     // Wait for all work-items to finish loading
     barrier(CLK_LOCAL_MEM_FENCE);
